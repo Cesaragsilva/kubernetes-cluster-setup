@@ -19,6 +19,7 @@ This repository contains the necessary configuration files for setting up a basi
 - Terraform installed
 - Ansible installed
 - AWS account with credentials configured
+- Kubectl installed
 
 ## Setup
 
