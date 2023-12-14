@@ -10,6 +10,10 @@ This repository contains the necessary configuration files for setting up a basi
 >
 > The resources created by Terraform are not free. Make sure to destroy the resources after you finish your testing.
 
+> [!NOTE]
+>
+> The instance type used in this setup are t4g.small (ARM64 architecture). It has a free tier (750/h per month) until 31/12/2023.
+
 ## Prerequisites
 
 - Terraform installed
@@ -28,15 +32,18 @@ terraform init
 terraform apply
 ```
 
-1. After that, add the Terraform output hosts to the Ansible inventory.yaml file. It would be like:
+1. After that, add the Terraform output hosts to the Ansible inventory.yaml file.
+
+Terraform output:
 
 ```
-<!-- terraform output: -->
 aws_instances = [
   "0.0.0.0", # control plane node
   "0.0.0.0", # worker node
 ]
 ```
+
+Ansible inventory.yaml:
 
 ```yaml
 cluster:
@@ -56,12 +63,13 @@ cluster:
 ```bash
 # Go back to the root directory of the repository
 cd ../
+
 ansible-playbook -i inventory.yaml playbooks/install-kubernetes.yaml
 ansible-playbook -i inventory.yaml playbooks/setup-control-planes.yaml
 ansible-playbook -i inventory.yaml playbooks/setup-workers.yaml
 ```
 
-1. Finally, you can check the nodes status by running:
+7. Finally, you can check the nodes status by running:
 
 ```bash
 kubectl get nodes
@@ -69,7 +77,7 @@ kubectl get nodes
 
 ## Connect to the cluster
 
-If you want to connect to ec2 instances, you can use the following commands:
+If you want to connect to ec2 instances via SSH, you can use the following command:
 
 ```bash
 ssh -i ./terraform/externals/cp.pem ubuntu@<node-ip> # Change <node-ip> with the node IP (from Terraform output)
