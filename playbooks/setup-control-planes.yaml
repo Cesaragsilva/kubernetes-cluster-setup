@@ -1,0 +1,154 @@
+- name: Initialize control planes
+  become: true
+  hosts: control_planes
+  tasks:
+    - name: Create kubeadm config file
+      ansible.builtin.file:
+        state: touch
+        path: /etc/kubernetes/kubeadm-config.yaml
+
+    - name: Get private ip
+      ansible.builtin.shell: |
+        hostname -I | awk '{print $1}'
+      register: private_ip
+
+    - name: Add kubeadm config
+      vars:
+        varPublicIp: "{{ hostvars[groups['control_planes'][0]]['ansible_host'] }}"
+        varPrivateIp: "{{ private_ip.stdout_lines[0] }}"
+      ansible.builtin.blockinfile:
+        path: /etc/kubernetes/kubeadm-config.yaml
+        block: |
+          apiVersion: kubeadm.k8s.io/v1beta3
+          kind: ClusterConfiguration
+          kubernetesVersion: 1.28.2
+          networking:
+            podSubnet: 192.168.0.0/16
+          apiServer:
+            certSANs:
+            - "{{ varPublicIp }}"
+            - "{{ varPrivateIp }}"
+
+    - name: Initialize kubernetes cluster
+      become: true
+      ansible.builtin.shell: |
+        kubeadm init --config=/etc/kubernetes/kubeadm-config.yaml --upload-certs | tee /etc/kubernetes/kubeadm-init.log
+      run_once: true
+      args:
+        executable: /bin/bash
+        chdir: $HOME
+
+    - name: Create .kube directory
+      ansible.builtin.file:
+        state: directory
+        path: /home/ubuntu/.kube
+        mode: 0755
+
+    - name: Copy admin.conf to user directory
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        remote_src: yes
+        mode: 0644
+
+    - name: Install Helm
+      run_once: true
+      ansible.builtin.shell: |
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+        chmod 700 get_helm.sh
+        ./get_helm.sh
+      args:
+        executable: /bin/bash
+        chdir: $HOME
+
+    - name: Install CNI plugin
+      run_once: true
+      become: false
+      ansible.builtin.shell: |
+        helm repo add cilium https://helm.cilium.io/
+        helm repo update
+        helm template cilium cilium/cilium \
+          --version 1.12.16 \
+          --namespace kube-system > cilium.yaml
+
+        kubectl apply -f cilium.yaml
+
+    - name: Set up crictl
+      ansible.builtin.shell: |
+        crictl config \
+          --set runtime-endpoint=unix:///run/containerd/containerd.sock \
+          --set image-endpoint=unix:///run/containerd/containerd.sock
+
+    - name: Sleep for 15 seconds
+      run_once: true
+      ansible.builtin.wait_for:
+        timeout: 15
+
+    - name: Remove NoSchedule taint
+      run_once: true
+      become: false
+      ansible.builtin.shell: |
+        kubectl taint node --all node-role.kubernetes.io/control-plane-
+
+    - name: Get join command
+      become: true
+      become_user: root
+      ansible.builtin.shell: |
+        kubeadm token create --print-join-command
+      register: join_command
+
+    - name: Copy join command to file
+      become: false
+      local_action: copy content="{{ join_command.stdout_lines[0] }}" dest="/tmp/join-command" mode=0777
+
+    - name: Export certificate-authority-data
+      become: true
+      become_user: root
+      ansible.builtin.shell: |
+        grep certificate-authority-data /home/ubuntu/.kube/config | cut -d " " -f 6
+      register: certificate_authority_data
+
+    - name: Copy certificate-authority-data to file
+      become: false
+      local_action: copy content="{{ certificate_authority_data.stdout_lines[0] }}" dest="/tmp/certificate-authority-data.crt" mode=0777
+
+    - name: Export client-key-data
+      become: true
+      become_user: root
+      ansible.builtin.shell: |
+        grep client-key-data /home/ubuntu/.kube/config | cut -d " " -f 6
+      register: client_key_data
+
+    - name: Copy client-key-data to file
+      become: false
+      local_action: copy content="{{ client_key_data.stdout_lines[0] }}" dest="/tmp/client-key-data.key" mode=0777
+
+    - name: Export client-cert
+      become: true
+      become_user: root
+      ansible.builtin.shell: |
+        grep client-cert /home/ubuntu/.kube/config | cut -d " " -f 6
+      register: client_cert
+
+    - name: Copy client-cert to file
+      become: false
+      local_action: copy content="{{ client_cert.stdout_lines[0] }}" dest="/tmp/client-cert.crt" mode=0777
+
+    - name: Configure kubectl server
+      become: false
+      local_action: ansible.builtin.shell
+        cat /tmp/certificate-authority-data.crt | base64 -d > /tmp/certificate-authority-data-b64.crt && \
+        kubectl --kubeconfig $HOME/.kube/config config set-cluster kubernetes --server https://{{ hostvars[groups['control_planes'][0]]['ansible_host'] }}:6443 --certificate-authority /tmp/certificate-authority-data-b64.crt --embed-certs=true
+
+    - name: Configure local kubectl
+      become: false
+      local_action: ansible.builtin.shell
+        cat /tmp/client-key-data.key | base64 -d > /tmp/client-key-data-b64.key && \
+        cat /tmp/client-cert.crt | base64 -d > /tmp/client-cert-b64.crt && \
+        kubectl --kubeconfig $HOME/.kube/config config set-credentials admin --client-key /tmp/client-key-data-b64.key --client-certificate /tmp/client-cert-b64.crt --embed-certs=true
+
+    - name: Configure local kubectl
+      become: false
+      local_action: ansible.builtin.shell
+        kubectl --kubeconfig $HOME/.kube/config config set-context default --cluster kubernetes --user admin && \
+        kubectl --kubeconfig $HOME/.kube/config config use-context default

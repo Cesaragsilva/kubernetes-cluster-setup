@@ -1,0 +1,10 @@
+LFS258
+.infracost
+
+.terraform
+terraform/externals
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate*
+terraform/.terraform.tfstate*
+
+stress

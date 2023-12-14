@@ -1,0 +1,16 @@
+- name: Join workers to cluster
+  become: true
+  hosts: workers
+  gather_facts: true
+  tasks:
+    - name: Copy join command to worker
+      ansible.builtin.copy:
+        src: /tmp/join-command
+        dest: /tmp/join-command
+        mode: 0777
+
+    - name: Join worker to cluster
+      become: true
+      ansible.builtin.command: |
+        sh /tmp/join-command
+      register: joined_or_not

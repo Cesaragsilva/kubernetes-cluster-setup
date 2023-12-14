@@ -1,0 +1,16 @@
+cluster:
+  children:
+    control_planes:
+      hosts:
+        cp:
+          ansible_host: 54.196.111.118
+    workers:
+      hosts:
+        worker1:
+          ansible_host: 54.144.26.230
+
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: ./terraform/externals/cp.pem
+    ansible_ssh_common_args: "-o GlobalKnownHostsFile=./terraform/externals/known_hosts"

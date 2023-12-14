@@ -1,0 +1,147 @@
+- name: Setup
+  hosts: control_planes, workers
+  become: true
+
+  tasks:
+    - name: Create the kube user account
+      ansible.builtin.user:
+        name: kube
+        append: yes
+        state: present
+        create_home: yes
+        shell: /bin/bash
+
+    - name: Allow kube to use sudo without needing a password
+      ansible.builtin.lineinfile:
+        dest: /etc/sudoers
+        line: "kube ALL=(ALL) NOPASSWD: ALL"
+        validate: "visudo -cf %s"
+
+    # - name: Set up authorized keys for kube user
+    #   ansible.posix.authorized_key:
+    #     user: kube
+    #     state: present
+    #     key: "{{ lookup('file', '/home/cleitin/.ssh/id_rsa.pub') }}"
+
+- name: Install kubernetes
+  hosts: control_planes, workers
+  become: true
+  become_method: sudo
+  become_user: root
+  gather_facts: true
+  connection: ssh
+
+  tasks:
+    - name: Create containerd config file
+      ansible.builtin.file:
+        state: touch
+        path: /etc/modules-load.d/containerd.conf
+
+    - name: Add containerd config
+      ansible.builtin.blockinfile:
+        path: /etc/modules-load.d/containerd.conf
+        block: |
+          overlay
+          br_netfilter
+
+    - name: Load modules
+      ansible.builtin.shell: |
+        modprobe overlay
+        modprobe br_netfilter
+      args:
+        executable: /bin/bash
+
+    - name: Create sysctl config file
+      ansible.builtin.file:
+        state: touch
+        path: /etc/sysctl.d/99-kubernetes-cri.conf
+
+    - name: Add sysctl settings
+      ansible.builtin.blockinfile:
+        path: /etc/sysctl.d/99-kubernetes-cri.conf
+        block: |
+          net.bridge.bridge-nf-call-iptables  = 1
+          net.ipv4.ip_forward                 = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+
+    - name: Reload sysctl
+      ansible.builtin.shell: |
+        sysctl --system
+      args:
+        executable: /bin/bash
+
+    - name: Install dependencies
+      ansible.builtin.shell: |
+        apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+
+    - name: Install containerd
+      ansible.builtin.shell: |
+        mkdir -p /etc/apt/keyrings
+        rm -f /etc/apt/keyrings/docker.gpg
+
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+          | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+          
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+          https://download.docker.com/linux/ubuntu \
+          $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+        apt-get update && apt-get install -y containerd.io
+
+    - name: Create containerd config directory
+      ansible.builtin.file:
+        state: directory
+        path: /etc/containerd
+
+    - name: Create containerd config file
+      ansible.builtin.file:
+        state: touch
+        path: /etc/containerd/config.toml
+
+    - name: Add containerd default config
+      ansible.builtin.shell: |
+        containerd config default | tee /etc/containerd/config.toml
+        sed -e 's/SystemdCgroup = false/SystemdCgroup = true/g' -i /etc/containerd/config.toml
+        systemctl restart containerd
+      args:
+        executable: /bin/bash
+
+    - name: Disable swap
+      ansible.builtin.shell: |
+        swapoff -a
+        sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+      args:
+        executable: /bin/bash
+
+    - name: Add kubernetes apt-key
+      ansible.builtin.apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+
+    - name: Add kubernetes apt repository
+      ansible.builtin.apt_repository:
+        repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
+        state: present
+        filename: kubernetes.list
+
+    - name: Install kubernetes packages
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+        allow_downgrade: yes
+      loop:
+        - kubelet=1.28.2-00
+        - kubeadm=1.28.2-00
+        - kubectl=1.28.2-00
+
+    - name: Mark kubelet, kubeadm and kubectl on hold
+      ansible.builtin.shell: |
+        apt-mark hold kubelet kubeadm kubectl
+
+    - name: Create alias for kubectl
+      ansible.builtin.shell: |
+        echo "alias k=kubectl" >> /etc/profile.d/aliases.sh
+      args:
+        executable: /bin/bash
