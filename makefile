@@ -6,10 +6,10 @@ init:
 	cd $(TF_DIR) && terraform init
 
 apply:
-	cd $(TF_DIR) && terraform apply --auto-approve
+	sudo hwclock -s && cd $(TF_DIR) && terraform apply --auto-approve
 
 destroy:
-	cd $(TF_DIR) && terraform destroy --auto-approve
+	sudo hwclock -s && cd $(TF_DIR) && terraform destroy --auto-approve
 
 # Ansible
 install-kubernetes:
