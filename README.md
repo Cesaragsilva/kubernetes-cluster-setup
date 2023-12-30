@@ -16,10 +16,29 @@ This repository contains the necessary configuration files for setting up a basi
 
 ## Prerequisites
 
+The follow scripts expect that you're using Ubuntu/WSL2
+
 - Terraform installed
+
+      wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+      echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+
+      sudo apt update && sudo apt install terraform
+
 - Ansible installed
+
+      sudo apt install ansible -y
+
 - AWS account with credentials configured
-- Kubectl installed
+
+      sudo hwclock -s
+
+      sudo apt install awscli
+
+      aws configure
+
+- [Kubectl installed](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/#install-kubectl-binary-with-curl-on-linux)
 
 ## Setup
 
@@ -30,7 +49,7 @@ This repository contains the necessary configuration files for setting up a basi
 ```bash
 cd terraform
 terraform init
-terraform apply
+terraform apply --auto-approve
 ```
 
 1. After that, add the Terraform output hosts to the Ansible inventory.yaml file.
@@ -61,6 +80,10 @@ cluster:
 
 6. Execute the following commands to setup the EC2 instances and local kubeconfig. It will take some time to finish.
 
+Note: If you have any problem with cp.pem file permission, run the command below directly in your terminal.
+
+    sudo chmod 600 ./terraform/externals/cp.pem
+
 ```bash
 # Go back to the root directory of the repository
 cd ../
@@ -90,5 +113,5 @@ To clean up the resources created by Terraform, run:
 
 ```bash
 cd terraform
-terraform destroy
+terraform destroy --auto-approve
 ```

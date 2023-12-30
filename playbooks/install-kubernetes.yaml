@@ -45,11 +45,9 @@
           br_netfilter
 
     - name: Load modules
-      ansible.builtin.shell: |
-        modprobe overlay
-        modprobe br_netfilter
-      args:
-        executable: /bin/bash
+      shell: |
+          modprobe overlay
+          modprobe br_netfilter
 
     - name: Create sysctl config file
       ansible.builtin.file:
@@ -65,29 +63,27 @@
           net.bridge.bridge-nf-call-ip6tables = 1
 
     - name: Reload sysctl
-      ansible.builtin.shell: |
-        sysctl --system
-      args:
-        executable: /bin/bash
+      shell: |
+          sysctl --system
 
     - name: Install dependencies
-      ansible.builtin.shell: |
-        apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+      shell: |
+          apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
 
     - name: Install containerd
-      ansible.builtin.shell: |
-        mkdir -p /etc/apt/keyrings
-        rm -f /etc/apt/keyrings/docker.gpg
+      shell: |
+          mkdir -p /etc/apt/keyrings
+          rm -f /etc/apt/keyrings/docker.gpg
 
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-          | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-          
-        echo \
-          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-          https://download.docker.com/linux/ubuntu \
-          $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+            | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+            https://download.docker.com/linux/ubuntu \
+            $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-        apt-get update && apt-get install -y containerd.io
+          apt-get update && apt-get install -y containerd.io
 
     - name: Create containerd config directory
       ansible.builtin.file:
@@ -100,17 +96,17 @@
         path: /etc/containerd/config.toml
 
     - name: Add containerd default config
-      ansible.builtin.shell: |
-        containerd config default | tee /etc/containerd/config.toml
-        sed -e 's/SystemdCgroup = false/SystemdCgroup = true/g' -i /etc/containerd/config.toml
-        systemctl restart containerd
+      shell: |
+          containerd config default | tee /etc/containerd/config.toml
+          sed -e 's/SystemdCgroup = false/SystemdCgroup = true/g' -i /etc/containerd/config.toml
+          systemctl restart containerd
       args:
         executable: /bin/bash
 
     - name: Disable swap
-      ansible.builtin.shell: |
-        swapoff -a
-        sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+      shell: |
+          swapoff -a
+          sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
       args:
         executable: /bin/bash
 
@@ -130,18 +126,16 @@
         name: "{{ item }}"
         state: present
         update_cache: yes
-        allow_downgrade: yes
+        #allow_downgrade: yes
       loop:
         - kubelet=1.28.2-00
         - kubeadm=1.28.2-00
         - kubectl=1.28.2-00
 
     - name: Mark kubelet, kubeadm and kubectl on hold
-      ansible.builtin.shell: |
-        apt-mark hold kubelet kubeadm kubectl
+      shell: |
+          apt-mark hold kubelet kubeadm kubectl
 
     - name: Create alias for kubectl
-      ansible.builtin.shell: |
-        echo "alias k=kubectl" >> /etc/profile.d/aliases.sh
-      args:
-        executable: /bin/bash
+      shell: |
+          echo "alias k=kubectl" >> /etc/profile.d/aliases.sh

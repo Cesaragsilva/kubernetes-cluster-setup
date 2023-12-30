@@ -11,6 +11,6 @@
 
     - name: Join worker to cluster
       become: true
-      ansible.builtin.command: |
+      shell: |
         sh /tmp/join-command
       register: joined_or_not

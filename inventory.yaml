@@ -3,11 +3,11 @@ cluster:
     control_planes:
       hosts:
         cp:
-          ansible_host: 54.196.111.118
+          ansible_host: 54.82.93.158
     workers:
       hosts:
         worker1:
-          ansible_host: 54.144.26.230
+          ansible_host: 54.91.3.59
 
   vars:
     ansible_python_interpreter: /usr/bin/python3

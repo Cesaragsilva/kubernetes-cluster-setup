@@ -70,11 +70,7 @@ resource "tls_private_key" "pk" {
 
   provisioner "local-exec" {
     when    = create
-    command = <<EOF
-      rm -f ${path.module}/externals/cp.pem
-      echo '${tls_private_key.pk.private_key_pem}' > ${path.module}/externals/cp.pem
-      chmod 0600 ${path.module}/externals/cp.pem
-EOF
+    command = "rm -f ${path.module}/externals/cp.pem && echo -n '${tls_private_key.pk.private_key_pem}' > ${path.module}/externals/cp.pem && chmod 0600 ${path.module}/externals/cp.pem"
   }
 }
 
@@ -112,10 +108,7 @@ resource "null_resource" "delete_known_hosts" {
   }
 
   provisioner "local-exec" {
-    command     = <<EOT
-rm -f ${path.module}/externals/known_hosts;
-EOT
-    interpreter = ["/bin/bash", "-c"]
+      command = "rm -f ${path.module}/externals/known_hosts"
   }
 }
 
@@ -129,11 +122,6 @@ resource "null_resource" "add_known_hosts" {
   for_each = aws_instance.this
 
   provisioner "local-exec" {
-    command     = <<EOT
-# For some reason, the ssh-keyscan command fails if we don't sleep a bit
-random=$((1 + RANDOM % 10));echo "Sleeping for $random seconds";
-sleep $random;ssh-keyscan ${aws_instance.this[each.key].public_ip} >> ${path.module}/externals/known_hosts;
-EOT
-    interpreter = ["/bin/bash", "-c"]
+    command     = "sleep 30; ssh-keyscan ${aws_instance.this[each.key].public_ip} >> ${path.module}/externals/known_hosts"
   }
 }
