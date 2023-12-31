@@ -2,11 +2,8 @@
 TF_DIR := terraform
 
 # terraform
-init:
-	cd $(TF_DIR) && terraform init
-
 apply:
-	sudo hwclock -s && cd $(TF_DIR) && terraform apply --auto-approve
+	sudo hwclock -s && cd $(TF_DIR) && terraform init && terraform apply --auto-approve
 
 destroy:
 	sudo hwclock -s && cd $(TF_DIR) && terraform destroy --auto-approve
@@ -22,6 +19,6 @@ setup-workers:
 	ansible-playbook -i inventory.yaml playbooks/setup-workers.yaml
 
 # main
-kubernetes: init apply install-kubernetes setup-control-planes setup-workers
+kubernetes: install-kubernetes setup-control-planes setup-workers
 
-.PHONY: init apply destroy install-kubernetes setup-control-planes setup-workers kubernetes
+.PHONY: apply destroy install-kubernetes setup-control-planes setup-workers kubernetes
