@@ -2,11 +2,11 @@ locals {
   instances = {
     cp = {
       ami           = data.aws_ami.ubuntu.id
-      instance_type = "t4g.small"
+      instance_type = "t3.small"
     }
     worker1 = {
       ami           = data.aws_ami.ubuntu.id
-      instance_type = "t4g.small"
+      instance_type = "t3.small"
     }
   }
 }
@@ -26,7 +26,7 @@ data "aws_ami" "ubuntu" {
 
   filter {
     name   = "architecture"
-    values = ["arm64"]
+    values = ["x86_64"]
   }
 
   owners = ["099720109477"]
