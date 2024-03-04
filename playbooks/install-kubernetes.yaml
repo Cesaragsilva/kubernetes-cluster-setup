@@ -31,7 +31,7 @@
   gather_facts: true
   connection: ssh
 
-  tasks:
+  tasks:    
     - name: Create containerd config file
       ansible.builtin.file:
         state: touch
@@ -111,26 +111,19 @@
         executable: /bin/bash
 
     - name: Add kubernetes apt-key
-      ansible.builtin.apt_key:
-        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
-        state: present
+      shell: |
+          apt-get update
+          apt-get install -y apt-transport-https ca-certificates curl
+          curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
+      args:
+        executable: /bin/bash
 
     - name: Add kubernetes apt repository
-      ansible.builtin.apt_repository:
-        repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
-        state: present
-        filename: kubernetes.list
-
-    - name: Install kubernetes packages
-      ansible.builtin.apt:
-        name: "{{ item }}"
-        state: present
-        update_cache: yes
-        #allow_downgrade: yes
-      loop:
-        - kubelet=1.28.2-00
-        - kubeadm=1.28.2-00
-        - kubectl=1.28.2-00
+      shell: |
+          echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
+          apt-get update
+      args:
+        executable: /bin/bash
 
     - name: Mark kubelet, kubeadm and kubectl on hold
       shell: |
